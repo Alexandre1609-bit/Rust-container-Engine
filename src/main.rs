@@ -7,7 +7,6 @@ fn main() {
     init_rootfs();
     fs::copy("/bin/busybox", "rootfs/bin/busybox").expect("Failed to copy file");
     run_container();
-    println!("Container created with success !")
 }
 
 fn init_rootfs() {
@@ -24,8 +23,14 @@ fn init_rootfs() {
 fn run_container() {
     chroot("./rootfs").expect("An error occured while doing 'chroot'");
     env::set_current_dir("/").expect("An error occured while transfering to the the root");
+
     Command::new("/bin/busybox")
-        .args(["echo", "Hello from the container"])
+        .args(["--install", "-s", "/bin"])
+        .status()
+        .expect("Failed to install shortcuts");
+
+    Command::new("/bin/busybox")
+        .arg("sh")
         .status()
         .expect("failed to execute process");
 }
