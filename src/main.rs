@@ -5,7 +5,7 @@ use std::process::Command;
 
 fn main() {
     init_rootfs();
-    fs::copy("/bin/echo", "rootfs/bin/echo").expect("Failed to copy file");
+    fs::copy("/bin/busybox", "rootfs/bin/busybox").expect("Failed to copy file");
     run_container();
     println!("Container created with success !")
 }
@@ -24,10 +24,8 @@ fn init_rootfs() {
 fn run_container() {
     chroot("./rootfs").expect("An error occured while doing 'chroot'");
     env::set_current_dir("/").expect("An error occured while transfering to the the root");
-    Command::new("/bin/echo")
-        .arg("Hello from the container")
-        .spawn()
+    Command::new("/bin/busybox")
+        .args(["echo", "Hello from the container"])
+        .status()
         .expect("failed to execute process");
 }
-
-//Prochaine étape : corriger le code, récupérer les binaires statiques via busybox et arranger le tout
