@@ -1,3 +1,4 @@
+use nix::sched::{CloneFlags, unshare};
 use std::env;
 use std::fs;
 use std::os::unix::fs::chroot;
@@ -9,8 +10,9 @@ fn main() {
     run_container();
 }
 
+//Init base structure
 fn init_rootfs() {
-    let folder_to_create = ["rootfs/bin", "rootfs/etc"];
+    let folder_to_create = ["rootfs/bin", "rootfs/etc", "rootfs/proc"];
 
     for dir in &folder_to_create {
         fs::create_dir_all(dir).expect("An error occured while creating the folder")
@@ -20,17 +22,30 @@ fn init_rootfs() {
     fs::write("rootfs/etc/hostname", add_content).expect("An error occured while creatin the file")
 }
 
+//Install base components and run one container
 fn run_container() {
+    unshare(CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWNS)
+        .expect("Failed to create namespace PID");
     chroot("./rootfs").expect("An error occured while doing 'chroot'");
     env::set_current_dir("/").expect("An error occured while transfering to the the root");
 
     Command::new("/bin/busybox")
-        .args(["--install", "-s", "/bin"])
-        .status()
-        .expect("Failed to install shortcuts");
-
-    Command::new("/bin/busybox")
         .arg("sh")
+        .arg("-c")
+        .args([
+            "--install",
+            "-s",
+            "/bin",
+            "&&",
+            "mount",
+            "-t",
+            "proc",
+            "proc",
+            "/proc",
+            "&&",
+            "exec",
+            "sh",
+        ])
         .status()
-        .expect("failed to execute process");
+        .expect("Failed to run container");
 }
