@@ -1,5 +1,7 @@
 use nix::sched::{CloneFlags, unshare};
+use nix::unistd::sethostname;
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::os::unix::fs::chroot;
 use std::process::Command;
@@ -24,11 +26,11 @@ fn init_rootfs() {
 
 //Install base components and run one container
 fn run_container() {
-    unshare(CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWNS)
+    unshare(CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWUTS)
         .expect("Failed to create namespace PID");
     chroot("./rootfs").expect("An error occured while doing 'chroot'");
     env::set_current_dir("/").expect("An error occured while transfering to the the root");
-
+    sethostname(OsStr::new("mini-nexus")).expect("Error : failed to change hostname");
     Command::new("/bin/busybox")
         .arg("sh")
         .arg("-c")
