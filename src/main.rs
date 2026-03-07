@@ -32,20 +32,7 @@ fn run_container() {
     Command::new("/bin/busybox")
         .arg("sh")
         .arg("-c")
-        .args([
-            "--install",
-            "-s",
-            "/bin",
-            "&&",
-            "mount",
-            "-t",
-            "proc",
-            "proc",
-            "/proc",
-            "&&",
-            "exec",
-            "sh",
-        ])
+        .arg("/bin/busybox --install -s /bin && mount -t proc proc /proc && exec sh")
         .status()
         .expect("Failed to run container");
 }
