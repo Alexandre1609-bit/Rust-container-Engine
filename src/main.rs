@@ -6,6 +6,12 @@ use std::fs;
 use std::os::unix::fs::chroot;
 use std::process::Command;
 
+struct ContainerConfig {
+    projectName: String,
+    rootPath: String,
+    run: String,
+}
+
 fn main() {
     init_rootfs();
     fs::copy("/bin/busybox", "rootfs/bin/busybox").expect("Failed to copy file");
