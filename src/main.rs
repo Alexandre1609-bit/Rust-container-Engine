@@ -7,19 +7,31 @@ use std::os::unix::fs::chroot;
 use std::process::Command;
 
 struct ContainerConfig {
-    projectName: String,
-    rootPath: String,
+    project_name: String,
+    root_path: String,
     run: String,
 }
 
+impl ContainerConfig {
+    fn new(name: &str, path: &str, cmd: &str) -> Self {
+        ContainerConfig {
+            project_name: name.to_string(),
+            root_path: path.to_string(),
+            run: cmd.to_string(),
+        }
+    }
+}
+
 fn main() {
-    init_rootfs();
+    let config = ContainerConfig::new("mini-nexus", "./rootfs", "/bin/busybox");
+
+    init_rootfs(&config);
     fs::copy("/bin/busybox", "rootfs/bin/busybox").expect("Failed to copy file");
-    run_container();
+    run_container(&config);
 }
 
 //Init base structure
-fn init_rootfs() {
+fn init_rootfs(config: &ContainerConfig) {
     let folder_to_create = ["rootfs/bin", "rootfs/etc", "rootfs/proc"];
 
     for dir in &folder_to_create {
@@ -31,13 +43,14 @@ fn init_rootfs() {
 }
 
 //Install base components and run one container
-fn run_container() {
+fn run_container(config: &ContainerConfig) {
     unshare(CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWUTS)
         .expect("Failed to create namespace PID");
-    chroot("./rootfs").expect("An error occured while doing 'chroot'");
+    chroot(config.root_path.as_str()).expect("An error occured while doing 'chroot'");
     env::set_current_dir("/").expect("An error occured while transfering to the the root");
-    sethostname(OsStr::new("mini-nexus")).expect("Error : failed to change hostname");
-    Command::new("/bin/busybox")
+    sethostname(OsStr::new(config.project_name.as_str()))
+        .expect("Error : failed to change hostname");
+    Command::new(config.run.as_str())
         .arg("sh")
         .arg("-c")
         .arg("/bin/busybox --install -s /bin && mount -t proc proc /proc && exec sh")
