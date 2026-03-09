@@ -4,6 +4,7 @@ use std::env;
 use std::ffi::OsStr;
 use std::fs;
 use std::os::unix::fs::chroot;
+use std::path::Path;
 use std::process::Command;
 
 struct ContainerConfig {
@@ -26,20 +27,26 @@ fn main() {
     let config = ContainerConfig::new("mini-nexus", "./rootfs", "/bin/busybox");
 
     init_rootfs(&config);
-    fs::copy("/bin/busybox", "rootfs/bin/busybox").expect("Failed to copy file");
+    let copy_folder = format!("{}/bin/busybox", config.root_path);
+    fs::copy("/bin/busybox", copy_folder).expect("Failed to copy file");
     run_container(&config);
 }
 
 //Init base structure
 fn init_rootfs(config: &ContainerConfig) {
-    let folder_to_create = ["rootfs/bin", "rootfs/etc", "rootfs/proc"];
+    let folder_to_create = [
+        Path::new(config.root_path.as_str()).join("bin"),
+        Path::new(config.root_path.as_str()).join("etc"),
+        Path::new(config.root_path.as_str()).join("proc"),
+    ];
 
     for dir in &folder_to_create {
         fs::create_dir_all(dir).expect("An error occured while creating the folder")
     }
 
-    let add_content = "Lorem Ipsum\n";
-    fs::write("rootfs/etc/hostname", add_content).expect("An error occured while creatin the file")
+    let add_content = config.project_name.as_str();
+    let hostname_file_path = format!("{}/etc/hostname", config.root_path.to_string());
+    fs::write(hostname_file_path, add_content).expect("An error occured while creatin the file")
 }
 
 //Install base components and run one container
@@ -53,7 +60,10 @@ fn run_container(config: &ContainerConfig) {
     Command::new(config.run.as_str())
         .arg("sh")
         .arg("-c")
-        .arg("/bin/busybox --install -s /bin && mount -t proc proc /proc && exec sh")
+        .arg(format!(
+            "{} --install -s /bin && mount -t proc proc /proc && exec sh",
+            config.run
+        ))
         .status()
         .expect("Failed to run container");
 }
