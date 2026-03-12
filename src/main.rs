@@ -51,8 +51,13 @@ fn init_rootfs(config: &ContainerConfig) {
 
 //Install base components and run one container
 fn run_container(config: &ContainerConfig) {
-    unshare(CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWUTS)
-        .expect("Failed to create namespace PID");
+    unshare(
+        CloneFlags::CLONE_NEWPID
+            | CloneFlags::CLONE_NEWNS
+            | CloneFlags::CLONE_NEWUTS
+            | CloneFlags::CLONE_NEWNET,
+    )
+    .expect("Failed to create namespace PID");
     chroot(config.root_path.as_str()).expect("An error occured while doing 'chroot'");
     env::set_current_dir("/").expect("An error occured while transfering to the the root");
     sethostname(OsStr::new(config.project_name.as_str()))
@@ -61,7 +66,7 @@ fn run_container(config: &ContainerConfig) {
         .arg("sh")
         .arg("-c")
         .arg(format!(
-            "{} --install -s /bin && mount -t proc proc /proc && exec sh",
+            "{} --install -s /bin && mount -t proc proc /proc && ip link set lo up && exec sh",
             config.run
         ))
         .status()
