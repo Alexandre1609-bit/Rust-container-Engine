@@ -1,4 +1,8 @@
+use nix::errno::Errno;
+use nix::libc::proc_cn_event;
+use nix::mount::{MntFlags, MsFlags, mount};
 use nix::sched::{CloneFlags, unshare};
+use nix::unistd::Uid;
 use nix::unistd::sethostname;
 use std::env;
 use std::ffi::OsStr;
@@ -23,7 +27,7 @@ impl ContainerConfig {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ContainerConfig::new("mini-nexus", "./rootfs", "/bin/busybox");
 
     init_rootfs(&config);
@@ -33,7 +37,7 @@ fn main() {
 }
 
 //Init base structure
-fn init_rootfs(config: &ContainerConfig) {
+fn init_rootfs(config: &ContainerConfig) -> Result<(), std::io::Error> {
     let folder_to_create = [
         Path::new(config.root_path.as_str()).join("bin"),
         Path::new(config.root_path.as_str()).join("etc"),
@@ -41,27 +45,17 @@ fn init_rootfs(config: &ContainerConfig) {
     ];
 
     for dir in &folder_to_create {
-        fs::create_dir_all(dir).expect("An error occured while creating the folder")
+        fs::create_dir_all(dir)?;
     }
 
     let add_content = config.project_name.as_str();
-    let hostname_file_path = format!("{}/etc/hostname", config.root_path.to_string());
-    fs::write(hostname_file_path, add_content).expect("An error occured while creatin the file")
+    let hostname_file_path = format!("{}/etc/hostname", config.root_path);
+    fs::write(hostname_file_path, add_content)?;
+    Ok(())
 }
 
 //Install base components and run one container
 fn run_container(config: &ContainerConfig) {
-    unshare(
-        CloneFlags::CLONE_NEWPID
-            | CloneFlags::CLONE_NEWNS
-            | CloneFlags::CLONE_NEWUTS
-            | CloneFlags::CLONE_NEWNET,
-    )
-    .expect("Failed to create namespace PID");
-    chroot(config.root_path.as_str()).expect("An error occured while doing 'chroot'");
-    env::set_current_dir("/").expect("An error occured while transfering to the the root");
-    sethostname(OsStr::new(config.project_name.as_str()))
-        .expect("Error : failed to change hostname");
     Command::new(config.run.as_str())
         .arg("sh")
         .arg("-c")
@@ -72,3 +66,51 @@ fn run_container(config: &ContainerConfig) {
         .status()
         .expect("Failed to run container");
 }
+
+fn setup_namespaces() -> Result<(), nix::Error> {
+    unshare(
+        CloneFlags::CLONE_NEWPID
+            | CloneFlags::CLONE_NEWNS
+            | CloneFlags::CLONE_NEWUTS
+            | CloneFlags::CLONE_NEWNET,
+    )?;
+    Ok(())
+}
+
+fn isolate_rootfs(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    chroot(path)?;
+    env::set_current_dir("/")?;
+    Ok(())
+}
+
+fn setup_hostname(hostname: &str) -> Result<(), nix::Error> {
+    sethostname(OsStr::new(hostname))?;
+    Ok(())
+}
+
+fn mount_proc() -> Result<(), Box<dyn std::error::Error>> {
+    mount(
+        None::<&str>,
+        "/proc",
+        Some("proc"),
+        MsFlags::empty(),
+        None::<&str>,
+    )?;
+    Ok(())
+}
+
+fn setup_loopback() -> Result<(), Box<dyn std::error::Error>> {
+    // TODO : remplacer par rtnetlink une fois que j'aurais plus de compétences en rust et async rust
+    Command::new("ip")
+        .args(["link", "set", "lo", "up"])
+        .status()?;
+    Ok(())
+}
+
+fn run_container(config: &ContainerConfig) -> Result<(), Box<dyn std::error::Error>> {
+    todo!();
+    Ok(())
+}
+
+ok(())
+
